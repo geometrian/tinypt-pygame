@@ -3,6 +3,7 @@
 import random
 from math import *
 import threading
+import time
 import sys, os, traceback
 import pygame
 from pygame.locals import *
@@ -15,7 +16,7 @@ if sys.platform in ["win32","win64"]: os.environ["SDL_VIDEO_CENTERED"]="1"
 pygame.display.init()
 pygame.font.init()
 
-res = [256,256]
+res = [400,300]
 icon = pygame.Surface((1,1)); icon.set_alpha(0); pygame.display.set_icon(icon)
 pygame.display.set_caption("SmallPT PyGame - Ian Mallett - 2018")
 
@@ -100,13 +101,19 @@ class ThreadTrace(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
     def run(self):
-        camera_position = Vec3(0,0,0)
+        t0 = time.time()
+        
+        camera_position = Vec3(0,0.5,0)
+        aspect_ratio = float(res[0]) / float(res[1])
+        
         objects = [
-            Sphere( Vec3( 0,0,-3),1, Vec3(0.9,0.9,0.9),Vec3(0.0,0.0,0.0) ),
-            Sphere( Vec3(-2,0,-4),1, Vec3(0.6,0.8,0.6),50.0*Vec3(1.0,0.9,0.8) ),
-            Sphere( Vec3(0,-11,-4),10, Vec3(0.8,0.2,0.2),Vec3(0.0,0.0,0.0) )
+            Sphere( Vec3(-2,1,-4),1, Vec3(0.6,0.8,0.6),50.0*Vec3(1.0,0.9,0.8) ),
+
+            Sphere( Vec3(0,-10001,-4),10000, Vec3(0.9,0.9,0.9),Vec3(0.0,0.0,0.0) ),
+            Sphere( Vec3( 0,0,-3),1, Vec3(0.9,0.6,0.2),Vec3(0.0,0.0,0.0) )
         ]
-        num_samples = 256
+        
+        num_samples = 4
         max_depth = 10
 
         #For each pixel . . .
@@ -126,7 +133,9 @@ class ThreadTrace(threading.Thread):
                         2.0*( (float(i)+random.random())/float(res[0]) ) - 1.0,
                         2.0*( (float(j)+random.random())/float(res[1]) ) - 1.0,
                         -1.0
-                    ).normalize()
+                    )
+                    direction[0] *= aspect_ratio
+                    direction.normalize_ip()
                     ray = Ray(camera_position,direction)
 
                     #Main path tracing loop. Find out how much light is propagating back along this
@@ -146,7 +155,8 @@ class ThreadTrace(threading.Thread):
                                     closest_distance       = hit_distance
                                     closest_surface_normal = hit_surface_normal
 
-                        #If we don't hit anything, then we're done
+                        #If we don't hit anything, then the path doesn't hit anything else and we're
+                        #   done
                         if closest_object == None:
                             break
 
@@ -165,8 +175,6 @@ class ThreadTrace(threading.Thread):
                     average_radiance += radiance
                     
                 average_radiance /= float(num_samples)
-##                if closest_surface_normal != None: average_radiance += closest_surface_normal
-##                if recurse_direction != None: average_radiance += recurse_direction
 
                 #Ignore radiometric to colorimetric conversion (and radiance to radiant flux
                 #   conversion) and just do the simple thing . . .
@@ -176,11 +184,12 @@ class ThreadTrace(threading.Thread):
                     clamp( rndint(average_radiance[2]*255.0), 0,255 )
                 )
                 color.correct_gamma(1.0/2.2) #Also, this is slightly incorrect . . .
-
-##                print(str(color)+" "+str(i)+","+str(j))
                 
                 surface.set_at( (i,res[1]-j-1), color )
-        print("Complete!")
+
+        t1 = time.time()
+        pygame.image.save(surface,"rendered-"+str(hash(random.random()))+".png")
+        print("Complete (rendered in "+str(t1-t0)+" seconds)!")
 
 class ThreadGUI(threading.Thread):
     def __init__(self):
